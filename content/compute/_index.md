@@ -5,18 +5,18 @@ _build:
   render: false
 weight: 1
 collapsible: true
-icon: "/images/icons/index/product-icon-host.svg"
+icon: "/images/icons/index/product_icon_host.svg"
 
 Section1:
   children:
     - title: 云服务器
       url: "/compute/vm/intro/instance/"
 
+    - title: 高性能计算 HPC
+      url: "/compute/hpc/intro/intro/"
+
     - title: 镜像
       url: "/compute/image/intro/image/"
-
-    - title: 高性能计算 EHPC
-      url: "/compute/hpc/intro/intro/"
 
     - title: SSH 密钥
       url: "/compute/ssh/intro/ssh/"

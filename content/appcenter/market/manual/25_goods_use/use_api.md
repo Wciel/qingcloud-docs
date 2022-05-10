@@ -1,5 +1,5 @@
 ---
-title: "API 类商品使用指引"
+title: "使用 API 类商品"
 description: 
 keyword: QingCloud, 青云, 云计算, 云市场, API 商品
 weight: 20
@@ -22,7 +22,7 @@ draft: false
 
    - 点击**再次购买**，可快速购买同款商品。
 
-   - 点击**套餐列表**，进入商品详情页。可查看 API 服务信息、查看使用明细及导出明细。
+   - 点击**套餐列表**，进入商品详情页。可查看品套餐的使用情况。
 
      <img src="../../../_images/um_buyers_api_details.png" />
 

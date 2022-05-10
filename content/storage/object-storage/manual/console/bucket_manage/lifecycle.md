@@ -63,13 +63,13 @@ QingStor 对象存储定义生命周期为 Bucket 的子资源，因此，只有
 
  ![](/storage/object-storage/_images/set_bucket_lifecycle2.png)
 
-3. 在弹出的 **添加规则** 对话框内，根据页面提示信息，填写相关参数后，点击 **提交** 按钮：
+3. 在弹出的对话框内，根据页面提示信息，填写相关参数后，点击 **提交** 按钮：
 
  ![](/storage/object-storage/_images/set_bucket_lifecycle3.png)
 
  **说明：**
    - **对象前缀：** 用于指定该规则匹配的 Object 名。
-      - 缺损时，说明该规则对 Bucket 内所有 Object 均适用；
+      - 缺省时，说明该规则对 Bucket 内所有 Object 均适用；
       - 不支持通配符和正则表达式；
       - 需进行编码，编码后长度在 1 ～ 1023 个字符之间。
    - **天数：** Object 创建或修改的指定天数后执行操作。
