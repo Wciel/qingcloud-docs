@@ -7,56 +7,51 @@ define('DS',DIRECTORY_SEPARATOR);
 include 'file.php';
 class md
 {
+	// 起始路径
+	protected $read_path = '.';
+	// 保存路径
+	protected $write_path_prefix = './result';
+
 	protected $resultFileHandle = null;
-	protected $fileNum=0;
-	protected $parentDir='.';
-	protected $directoryNum=0;
 
 	protected $files = [];
 
-	protected $content = '';
-
-	public function run($path='.')
+	public function setReadPath($read_path)
 	{
-		if(is_file('result.md')) unlink('result.md');
-
-		$this->resultFileHandle = fopen('result.txt','ab+');
-		$this->listDirectory($path);
-		$this->streamWrite($this->files);
-		fclose($this->resultFileHandle);
-		rename('result.txt','result.md');
+		$this->read_path = $read_path;
 	}
 
-	/**
-	 * 排序文件, 根据 weight 值得出排序过后的文件
-	 *
-	 * @param $dir
-	 */
+	public function setWritePathPrefix($write_path_prefix)
+	{
+		$this->write_path_prefix = $write_path_prefix;
+	}
+
+	public function run()
+	{
+
+		if(is_file($this->write_path_prefix . '.md')) unlink($this->write_path_prefix . '.md');
+
+		$this->resultFileHandle = fopen($this->write_path_prefix . '.txt','ab+');
+		$this->listDirectory($this->read_path);
+		$this->streamWrite($this->files);
+		fclose($this->resultFileHandle);
+		rename($this->write_path_prefix . '.txt', $this->write_path_prefix . '.md');
+	}
+
 	public function listDirectory($dir)
 	{
-		$file =  new File($dir);
+		$sort_info = (new File($dir))->sortDirAndFile();
 
-		$sort_info = $file->dirSortInfo('asc');
 
 		foreach ($sort_info as $info) {
+			if ($info['isFile'] && substr($info['path'], strpos($info['path'], '.md')) !== '.md') continue;
 
-			$fileObj = new File($info['path']);
-
-			$files = ($fileObj)->getFiles();
-
-			if (!empty($files)) {
-				$sort_files = $fileObj->fileSortInfo($files);
-
-				foreach ($sort_files as $v) {
-					array_push($this->files, $v['path']);
-				}
-			}
-
-			if (is_dir($info['path'])) {
+			if ($info['isFile']) {
+				array_push($this->files, $info['path']);
+			} else {
 				$this->listDirectory($info['path']);
 			}
 		}
-
 	}
 
 	/**
@@ -90,10 +85,10 @@ class md
 
 		$fileObj = new File($path);
 
-		if ($path == './features.md'
+		if ($path == './_index.md'
+		||	$path == './features.md'
 		|| $fileObj->checkIsDraft() === true
 		|| $fileObj->getTitle() === '产品动态'
-		|| $fileObj->getTitle() === '动态与公告'
 		) {
 			return false;
 		}
@@ -112,14 +107,12 @@ class md
 	{
 		$fp = fopen('php://memory', 'r+');
 
+		$title = (new File($path))->getTitle();
+		$content = '';
+
 		if (substr($path, strpos($path, '_index.md')) === '_index.md') {
 
-			$count =  substr_count($path, '/');
-
-			// 其他的需要找到对应的标题
-			$title = (new File($path))->getTitle();
-
-			$content = '';
+			$count =  substr_count(substr($path,strripos($path,"/content")), '/');
 
 			if ($count > 2 && $title) {
 				$content = PHP_EOL . str_repeat('#', $count - 1) . ' ' . $title . PHP_EOL;
@@ -128,10 +121,10 @@ class md
 			}
 
 		} else {
-			
-			$content = file_get_contents($path);
-			// 处理头部 --- --- 内容
-			$content = $this->dealWithHeadContent($content);
+			// 处理内容中的 # 
+			$content = $this->dealWithContentBody($path);
+			// 去掉 content 头部信息
+			$content = $this->clearContentTop($content, $title, $path);
 			// 处理图片展示
 			$content = $this->dealWithContentPic($content, $path);
 		}
@@ -167,29 +160,74 @@ class md
         return $pos_val-1;
     }
 
-	// 去除头部 展示
-
 	/**
 	 * @param $content
 	 * @return mixed|string|string[]|null
 	 */
-	public function dealWithHeadContent($content)
+	public function dealWithContentBody($path)
 	{
 
-		// 去掉头部  --- --- 中间的部分
-		$content = substr_replace($content,
-			'',
-			$this->str_n_pos($content, '---', 1),
-			$this->str_n_pos($content, '---', 2) + 3
-		);
+		$content = file_get_contents($path);
 
-		$content = preg_replace_callback('~#(#| ).*~', function ($matches) {
+		// 路径中的 count
+
+		// $res = substr($path,strripos($path,"/content") - 1);
+
+		$count_dir = substr_count(substr($path,strripos($path,"/content")), '/');
+		// 获取内容中 # 需要添加的 基数
+		$count_fill = $this->calAddBaseCount($content, $count_dir);
+		
+		
+		$content = preg_replace_callback('~#(#| ).*~', function ($matches) use ($count_fill, $count_dir) {
+			// 获取原始字符串
 			$origin_str = $matches[0];
-			$count = substr_count($origin_str, '#');
-			return str_replace(str_repeat('#', $count), str_repeat('#', $count + 1), $origin_str);
+			// 获取原始字符串中 # 号数量
+			$count_origin = substr_count(explode(" ", $origin_str)[0], '#');
+			// 计算出最终需要的#
+			$count_end = $this->calAddEndNum($count_origin, $count_fill, $count_dir);
+			// 替换字符串
+			return str_replace(str_repeat('#', $count_origin), str_repeat('#', $count_end), $matches[0]);
 		}, $content);
 
 		return $content;
+	}
+
+	private function calAddEndNum($count_origin, $count_fill, $count_dir)
+	{
+		// 存在一个判断 => 如果是内部的层级小于了最起始的 # , 则强制将里面的 # 提升
+		$count_end = (($count_origin + $count_fill) < $count_dir) ? ($count_dir) : ($count_origin + $count_fill);
+
+		return ($count_end > 6) ? 6 : $count_end;	
+	}
+
+	// 计算出内容需要添加的基数
+	private function calAddBaseCount($content, $count_dir)
+	{
+		// 需要补充的 count
+		$count_fill = 0;
+
+		// 获取文章第一个 # 时候的个数， 以此作为后面添加的基数
+		preg_match('~#(#| ).*~', $content, $matches);
+		if (!empty($matches)) {
+			// 获取原始字符串
+			$origin_str = $matches[0];
+			// 获取原始字符串中 # 号数量
+			$count_fill = $count_dir - substr_count($origin_str, '#');
+		}
+
+		return $count_fill;
+	}
+
+	// 去掉头部  --- --- 中间的部分  => fix: 替换成文章标题
+	private function clearContentTop($content, $title, $path)
+	{
+		return substr_replace($content,
+
+			($title) ? PHP_EOL . str_repeat('#', substr_count($path, '/')) .' '. $title : '',
+
+			$this->str_n_pos($content, '---', 1),
+			$this->str_n_pos($content, '---', 2) + 3
+		);
 	}
 
 	/**
@@ -231,6 +269,10 @@ class md
 }
 
 $md =  new Md();
+// 设置读取路径 => 定位到 content 目录
+// $md->setReadPath('./content');
+// 设置写入路径 
+// $md->setWritePathPrefix('./test');
 $md->run();
 
 ?>

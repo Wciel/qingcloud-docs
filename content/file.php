@@ -11,34 +11,6 @@ class File extends SplFileInfo{
 		parent::__construct($path);
 	}
 
-	public function getPFile()
-	{
-		$this->pFile =  new self($this->getParentDirectory());
-		return $this->pFile;
-		
-	}
-
-	// 获取同级文件
-	public function  getSiblingsFiles()
-	{
-		return $this->getPFile()->getFiles();
-	}
-
-	// 获取同级目录
-	public function getSiblingsDirectory()
-	{
-		return $this->getPFile()->getDirectories();
-	}
-
-	public function getParentDirectory()
-	{
-		return  '..'.DS.$this->path;
-		$pathinfoArray =  explode(DS,$this->path);
-		array_pop($pathinfoArray);
-		$parentPath = implode(DS,$pathinfoArray);
-		return $parentPath;
-	}
-
 	public function getWeight()
 	{
 		if($this->isDir()){
@@ -83,13 +55,8 @@ class File extends SplFileInfo{
 	public function getFileTitle($filepath)
 	{
 		$content = file_get_contents($this->path);
-		preg_match('/title: "(\S+)"/',$content,$tmatch);
-
-		if(empty($tmatch[1])){
-			// $this->error("文件%s:获取title错误",[$this->path]);
-			return  0 ;
-		}
-		return $tmatch[1];
+		$split_content = substr($content, strpos($content, 'title: ')+8);
+        return substr($split_content, 0, strpos($split_content, '"'));
 	}
 
 	public function getFileWeight($filepath)
@@ -104,101 +71,49 @@ class File extends SplFileInfo{
 		return $wmatch[1];
 	}
 
-	// alias 当前目录下的所有目录
-	public function getChildDirectory()
-	{
-		return $this->getDirectories();
-	}
-	// alias 当前目录下的所有文件
-	public function getChildFiles()
-	{
-		return $this->getFiles();
-	}
-	
-	public function isHasChildDirectory(){
-		if($this->isDir()){
-			$childDirs = $this->getChildDirectory();
-			return !empty($childDirs);
-		}
-		return false;
-	}
-
-	public function getFiles()
-	{
-		return  $this->getFilesOrDirectories(true);
-	}
-
-	public function getDirectories()
-	{
-		return $this->getFilesOrDirectories(false);
-	}
-
-	private function getFilesOrDirectories($isFile=true)
+	public function sortDirAndFile()
 	{
 		$dir = $this->path;
 		$returnDirs =$files = [];
 		$rfp = opendir($dir);
 
-		if (!readdir($rfp)) {
-			var_dump($this->path);
-			die();
-		}
+		$ret = [];
+
 		while(($file=readdir($rfp))!==false){
-			if($file==='.'||$file==='..') continue;
-			$path =  $dir.DS.$file;
-			if(is_dir($path)){
-				$returnDirs[]= $path;
-			}else{
-				if((new self($path))->getExtension()==='md')
-					$files [] = $path;
-			}
-		}
-		return  $isFile?$files:$returnDirs;
-	}
+			if($file==='.'
+			||$file==='..'
+			||$file==='pdf'
+			||$file === '.idea'
+			||(is_file($file) && substr($file, strpos($file, '.md')) !== '.md')) continue;
 
-	// 获取文件夹中里面最小weight的
-	public function dirSortInfo($sort = '')
-	{
-		$childrens = $this->getChildDirectory();
+			$path =  $dir . DS . $file;	
 
-		$ret = [];
+			$weight = (is_file($path)) ? $this->getFileWeight($path) : $this->getFileWeight($path. '/_index.md');
 
-		foreach ($childrens as $k) {
-
-			if ($k == './pdf') continue;
-			$ret[] = [
-				'weight'	=>	$this->getFileWeight($k. '/_index.md'),
-				'path'		=>	$k
-			];
-		}
-
-		if ($sort == 'asc') {
-			$ret = $this->arraySort($ret, 'weight', SORT_ASC);
-		}
-
-		return $ret;
-
-	}
-
-	// 排序文件夹
-	public function fileSortInfo($files)
-	{
-		$ret = [];
-
-		foreach ($files as $file) {
-			if (substr(strrchr($file, '.'), 1)  != 'md') continue;
-
-			$weight =  (substr($file, strpos($file, '_index.md')) === '_index.md') ? 0 : $this->getFileWeight($file);
 			$ret[] = [
 				'weight'	=>	$weight,
-				'path'		=>	$file
+				'path'		=>	$path,
+				'isFile'	=>	(is_file($path)) ? true : false
 			];
+
 		}
 
 		$ret = $this->arraySort($ret, 'weight', SORT_ASC);
 
-		return $ret;
+		$index_info = [];
 
+		foreach($ret as $k => $v) {
+			if (substr($v['path'], strpos($v['path'], '_index.md')) === '_index.md') {
+				$index_info = $v;
+				unset($ret[$k]);
+				break;
+			}
+		}
+		if (!empty($index_info)) {
+			array_unshift($ret, $index_info);
+		}
+
+		return $ret;
 	}
 
 
